@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import httpx
 from geopy.distance import geodesic
 from datetime import datetime
@@ -26,9 +27,9 @@ class Incident(BaseModel):
     address: str
     location: Location
     timestamp: str
-    distance_miles: float = 0
-    severity: str = "unknown"
-    delay: int = 0
+    distance_miles: Optional[float] = 0
+    severity: Optional[str] = "unknown"
+    delay: Optional[int] = 0
 
 async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20):
     lat_delta = radius_miles / 69.0
