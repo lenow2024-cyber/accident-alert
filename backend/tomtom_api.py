@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
 import httpx
 from geopy.distance import geodesic
 from datetime import datetime
 import os
+
 app = FastAPI(title="Accident Alert API")
 
 app.add_middleware(
@@ -21,15 +21,16 @@ TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY", "")
 class Location(BaseModel):
     latitude: float
     longitude: float
+
 class Incident(BaseModel):
     id: str
     type: str
     address: str
     location: Location
     timestamp: str
-    distance_miles: Optional[float] = 0
-    severity: Optional[str] = "unknown"
-    delay: Optional[int] = 0
+    distance_miles: float = 0.0
+    severity: str = "unknown"
+    delay: int = 0
 
 async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20):
     lat_delta = radius_miles / 69.0
