@@ -28,9 +28,9 @@ class Incident(BaseModel):
     address: str
     location: Location
     timestamp: str
-    distance_miles: float = 0.0
-    severity: str = "unknown"
-    delay: int = 0
+    distance_miles: float
+    severity: str
+    delay: int
 
 async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20):
     lat_delta = radius_miles / 69.0
@@ -105,6 +105,7 @@ async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20)
                     address=address.strip(),
                     location=Location(latitude=inc_lat, longitude=inc_lon),
                     timestamp=datetime.now().isoformat(),
+                    distance_miles=0.0,
                     severity=str(props.get("magnitudeOfDelay", 0)),
                     delay=int(props.get("delay") or 0)
                 )
@@ -114,7 +115,6 @@ async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20)
         print(f"Error: {e}")
     
     return incidents
-
 @app.get("/")
 async def root():
     return {
