@@ -32,7 +32,7 @@ async def fetch_tomtom_incidents(lat, lon, radius_miles=20):
         "key": TOMTOM_API_KEY,
         "bbox": f"{min_lon},{min_lat},{max_lon},{max_lat}",
         "language": "en-US",
-        "categoryFilter": "0,1,2,3,4,5,6,7,8,9,10,11,14"
+        "categoryFilter": "0,1,2"
     }
     
     incidents = []
