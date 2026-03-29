@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import httpx
 from geopy.distance import geodesic
 from datetime import datetime
@@ -17,20 +16,6 @@ app.add_middleware(
 )
 
 TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY", "")
-
-class Location(BaseModel):
-    latitude: float
-    longitude: float
-
-class Incident(BaseModel):
-    id: str
-    type: str
-    address: str
-    location: Location
-    timestamp: str
-    distance_miles: float
-    severity: str
-    delay: int
 
 async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20):
     lat_delta = radius_miles / 69.0
@@ -99,22 +84,26 @@ async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20)
                 else:
                     address = "Unknown location"
                 
-                incident = Incident(
-                    id=item.get("id", str(len(incidents))),
-                    type=incident_type,
-                    address=address.strip(),
-                    location=Location(latitude=inc_lat, longitude=inc_lon),
-                    timestamp=datetime.now().isoformat(),
-                    distance_miles=0.0,
-                    severity=str(props.get("magnitudeOfDelay", 0)),
-                    delay=int(props.get("delay") or 0)
-                )
+                incident = {
+                    "id": item.get("id", str(len(incidents))),
+                    "type": incident_type,
+                    "address": address.strip(),
+                    "location": {
+                        "latitude": inc_lat,
+                        "longitude": inc_lon
+                    },
+                    "timestamp": datetime.now().isoformat(),
+                    "distance_miles": 0.0,
+                    "severity": str(props.get("magnitudeOfDelay", 0)),
+                    "delay": int(props.get("delay") or 0)
+                }
                 incidents.append(incident)
     
     except Exception as e:
         print(f"Error: {e}")
     
     return incidents
+
 @app.get("/")
 async def root():
     return {
@@ -125,30 +114,19 @@ async def root():
 
 @app.get("/incidents/nearby")
 async def get_nearby_incidents(user_id: str = "test", max_distance: int = 20):
-    user_location = Location(latitude=33.4484, longitude=-112.0740)
+    user_location = {
+        "latitude": 33.4484,
+        "longitude": -112.0740
+    }
     
     incidents = await fetch_tomtom_incidents(
-        user_location.latitude,
-        user_location.longitude,
+        user_location["latitude"],
+        user_location["longitude"],
         radius_miles=max_distance
     )
     
     filtered = []
     for inc in incidents:
         distance = geodesic(
-            (user_location.latitude, user_location.longitude),
-            (inc.location.latitude, inc.location.longitude)
-        ).miles
-        
-        if distance <= max_distance:
-            inc.distance_miles = round(distance, 1)
-            filtered.append(inc)
-    
-    filtered.sort(key=lambda x: x.distance_miles)
-    
-    return {
-        "user_location": user_location,
-        "incidents": filtered,
-        "count": len(filtered),
-        "data_source": "TomTom Traffic API"
-    }
+            (user_location["latitude"], user_location["longitude"]),
+            
