@@ -17,7 +17,7 @@ app.add_middleware(
 
 TOMTOM_API_KEY = os.getenv("TOMTOM_API_KEY", "")
 
-async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20):
+async def fetch_tomtom_incidents(lat, lon, radius_miles=20):
     lat_delta = radius_miles / 69.0
     lon_delta = radius_miles / 54.0
     
@@ -31,7 +31,6 @@ async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20)
     params = {
         "key": TOMTOM_API_KEY,
         "bbox": f"{min_lon},{min_lat},{max_lon},{max_lat}",
-        "fields": "{incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,delay,from,to,events{description}}}}",
         "language": "en-US",
         "categoryFilter": "0,1,2,3,4,5,6,7,8,9,10,11,14"
     }
@@ -49,15 +48,15 @@ async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20)
                 geom = item.get("geometry", {})
                 coords_raw = geom.get("coordinates", [])
                 
-                inc_lon, inc_lat = None, None
-                
-                if coords_raw and len(coords_raw) > 0:
-                    first_coord = coords_raw[0]
-                    if isinstance(first_coord, list) and len(first_coord) >= 2:
-                        inc_lon, inc_lat = first_coord[0], first_coord[1]
-                
-                if inc_lon is None or inc_lat is None:
+                if not coords_raw or len(coords_raw) == 0:
                     continue
+                
+                first_coord = coords_raw[0]
+                if not isinstance(first_coord, list) or len(first_coord) < 2:
+                    continue
+                    
+                inc_lon = first_coord[0]
+                inc_lat = first_coord[1]
                 
                 icon_category = props.get("iconCategory", 999)
                 events = props.get("events", [])
@@ -88,14 +87,11 @@ async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20)
                     "id": item.get("id", str(len(incidents))),
                     "type": incident_type,
                     "address": address.strip(),
-                    "location": {
-                        "latitude": inc_lat,
-                        "longitude": inc_lon
-                    },
+                    "location": {"latitude": inc_lat, "longitude": inc_lon},
                     "timestamp": datetime.now().isoformat(),
                     "distance_miles": 0.0,
                     "severity": str(props.get("magnitudeOfDelay", 0)),
-                    "delay": int(props.get("delay") or 0)
+                    "delay": int(props.get("delay", 0))
                 }
                 incidents.append(incident)
     
@@ -106,27 +102,29 @@ async def fetch_tomtom_incidents(lat: float, lon: float, radius_miles: int = 20)
 
 @app.get("/")
 async def root():
-    return {
-        "status": "online",
-        "service": "Accident Alert API",
-        "data_source": "TomTom Traffic API"
-    }
+    return {"status": "online", "service": "Accident Alert API"}
 
 @app.get("/incidents/nearby")
-async def get_nearby_incidents(user_id: str = "test", max_distance: int = 20):
-    user_location = {
-        "latitude": 33.4484,
-        "longitude": -112.0740
-    }
+async def get_nearby_incidents(max_distance: int = 20):
+    user_lat = 33.4484
+    user_lon = -112.0740
     
-    incidents = await fetch_tomtom_incidents(
-        user_location["latitude"],
-        user_location["longitude"],
-        radius_miles=max_distance
-    )
+    incidents = await fetch_tomtom_incidents(user_lat, user_lon, max_distance)
     
     filtered = []
     for inc in incidents:
-        distance = geodesic(
-            (user_location["latitude"], user_location["longitude"]),
-            
+        inc_lat = inc["location"]["latitude"]
+        inc_lon = inc["location"]["longitude"]
+        distance = geodesic((user_lat, user_lon), (inc_lat, inc_lon)).miles
+        
+        if distance <= max_distance:
+            inc["distance_miles"] = round(distance, 1)
+            filtered.append(inc)
+    
+    filtered.sort(key=lambda x: x["distance_miles"])
+    
+    return {
+        "user_location": {"latitude": user_lat, "longitude": user_lon},
+        "incidents": filtered,
+        "count": len(filtered)
+    }
